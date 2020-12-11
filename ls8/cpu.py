@@ -1,13 +1,28 @@
 """CPU functionality."""
 
 import sys
+import time
+import traceback
+
+HLT = 0b00000001
+LDI = 0b00000010
+PRN = 0b00000111
 
 class CPU:
     """Main CPU class."""
 
     def __init__(self):
         """Construct a new CPU."""
-        pass
+        self.ram = [0] * 256
+        self.reg = [0] * 8
+        self.pc = 0
+        self.sp = 0xf4
+    
+    def ram_read(self, address):
+        return self.ram[address]
+    
+    def ram_write(self, val, address):
+        self.ram[address] += val
 
     def load(self):
         """Load a program into memory."""
@@ -62,4 +77,53 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        pass
+        # read memory address stored in PC
+        # store that result in IR
+        # can just be a local variable in run
+        ir = self.ram[self.pc] # instruction register
+
+        self.pc += 1
+
+        inst = ir & 0b1111
+
+        #using ram_read()
+        #ex.)
+        # ram_read(3)
+
+        opera_cnt = ir >> 6
+
+        op_pos = self.pc
+        opera = (self.ram_read(op_pos + i) for i in range(opera_cnt))
+
+        op_a = self.ram_read(self.pc + 1)
+
+        op_b = self.ram_read(self.pc + 2)
+
+        # then, depending on op_a & op_b
+        # perform action needed per the instruction
+
+        # use and if else cascade here...
+
+        # implement HLT
+        # HLT is = 1
+
+        running = True
+
+        while running:
+            if inst == HLT:
+                running = False
+            else:
+                def ldi():
+                    a = next(opera)
+                    b = next(opera)
+                    self.reg[a] = b
+                def prn():
+                    print(self.reg[next(opera)], end="")
+                    sys.stdout.flush()
+                
+                self.pc += 4
+
+
+
+
+
