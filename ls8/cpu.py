@@ -1,129 +1,178 @@
 """CPU functionality."""
 
 import sys
-import time
-import traceback
 
 HLT = 0b00000001
-LDI = 0b00000010
-PRN = 0b00000111
+LDI = 0b10000010
+PRN = 0b01000111
+PUSH = 0b01000101
+POP = 0b01000110
+ADD = 0b10100000
+MUL = 0b10100010
+AND = 0b10101000
+DIV = 0b10100011
 
 class CPU:
-    """Main CPU class."""
+	"""Main CPU class."""
 
-    def __init__(self):
-        """Construct a new CPU."""
-        self.ram = [0] * 256
-        self.reg = [0] * 8
-        self.pc = 0
-        self.sp = 0xf4
-    
-    def ram_read(self, address):
-        return self.ram[address]
-    
-    def ram_write(self, val, address):
-        self.ram[address] += val
+	def __init__(self):
+		"""Construct a new CPU."""
 
-    def load(self):
-        """Load a program into memory."""
+		self.memory = [0] * 8
+		self.ram = [0] * 256
+		self.registers = [0] * 8
+		self.registers[7] = 0xF4
+		self.pc = 0
 
-        address = 0
-
-        # For now, we've just hardcoded a program:
-
-        program = [
-            # From print8.ls8
-            0b10000010, # LDI R0,8
-            0b00000000,
-            0b00001000,
-            0b01000111, # PRN R0
-            0b00000000,
-            0b00000001, # HLT
-        ]
-
-        for instruction in program:
-            self.ram[address] = instruction
-            address += 1
+		self.branch_table = {
+			HLT: self.hlt, #halt
+			LDI: self.ldi,
+			PRN: self.prn,
+			PUSH: self.push, # push
+			POP: self.pop, # pop
+			ADD: self.alu, # add
+			MUL: self.alu, # multiply
+			DIV: self.alu, # divide
+		}
 
 
-    def alu(self, op, reg_a, reg_b):
-        """ALU operations."""
+	def load(self):
+		"""Load a program into memory."""
 
-        if op == "ADD":
-            self.reg[reg_a] += self.reg[reg_b]
-        #elif op == "SUB": etc
-        else:
-            raise Exception("Unsupported ALU operation")
+		if (len(sys.argv)) != 2:
+			print("Add sys file name")
+			print("ex.): python3 ls8.py <sys_file.py>")
+			sys.exit()
 
-    def trace(self):
-        """
-        Handy function to print out the CPU state. You might want to call this
-        from run() if you need help debugging.
-        """
+        # initiate address
+		address = 0
+        
+		try:
+			with open(sys.argv[1]) as f:
+                # parse the file
+				for line in f:
+					possible_number = line[:line.find('#')]
+					if possible_number == '':
+                        # continue
+						continue
+					
+                    # make integer
+					instruction = int(possible_number, 2)
 
-        print(f"TRACE: %02X | %02X %02X %02X |" % (
-            self.pc,
-            #self.fl,
-            #self.ie,
-            self.ram_read(self.pc),
-            self.ram_read(self.pc + 1),
-            self.ram_read(self.pc + 2)
-        ), end='')
+                    # assign address to instruction
+					self.ram[address] = instruction
 
-        for i in range(8):
-            print(" %02X" % self.reg[i], end='')
+                    # count up by one
+					address += 1
 
-        print()
+        # exception on missing file
+		except FileNotFoundError:
+			print(f'Error from {sys.argv[0]}: {sys.argv[1]} not found')
+			sys.exit()
 
-    def run(self):
-        """Run the CPU."""
-        # read memory address stored in PC
-        # store that result in IR
-        # can just be a local variable in run
-        ir = self.ram[self.pc] # instruction register
+    # mem address register
+	def ram_read(self, MAR):
+		return self.ram[MAR]
 
-        self.pc += 1
+    # mem data register
+	def ram_write(self, MAR, MDR):
+		self.ram[MAR] = MDR
 
-        inst = ir & 0b1111
+	def alu(self, IR, operand_a, operand_b):
+		"""ALU operations."""
 
-        #using ram_read()
-        #ex.)
-        # ram_read(3)
+		if IR == MUL:
+			self.registers[operand_a] *= self.registers[operand_b]
 
-        opera_cnt = ir >> 6
+		elif IR == ADD:
+			self.registers[operand_a] += self.registers[operand_b]
 
-        op_pos = self.pc
-        opera = (self.ram_read(op_pos + i) for i in range(opera_cnt))
+		elif IR == AND:
+			self.registers[operand_a] = self.registers[operand_a] & self.registers[operand_b]
 
-        op_a = self.ram_read(self.pc + 1)
+		elif IR == DIV:
+			if self.registers[operand_b] == 0:
+				print('ERROR: Cannot Divide by Zero')
+				sys.exit()
 
-        op_b = self.ram_read(self.pc + 2)
+			else:
+				self.registers[operand_a] /= self.registers[operand_b]
 
-        # then, depending on op_a & op_b
-        # perform action needed per the instruction
+		else:
+			raise Exception("Unsupported ALU operation")
 
-        # use and if else cascade here...
+	def trace(self):
+		"""
+		Handy function to print out the CPU state. You might want to call this
+		from run() if you need help debugging.
+		"""
 
-        # implement HLT
-        # HLT is = 1
+		print(f"TRACE: %02X | %02X %02X %02X |" % (
+			self.pc,
+			#self.fl,
+			#self.ie,
+			self.ram_read(self.pc),
+			self.ram_read(self.pc + 1),
+			self.ram_read(self.pc + 2)
+		), end='')
 
-        running = True
+		for i in range(8):
+			print(" %02X" % self.reg[i], end='')
 
-        while running:
-            if inst == HLT:
-                running = False
-            else:
-                def ldi():
-                    a = next(opera)
-                    b = next(opera)
-                    self.reg[a] = b
-                def prn():
-                    print(self.reg[next(opera)], end="")
-                    sys.stdout.flush()
-                
-                self.pc += 4
+		print()
 
+	def run(self):
+		"""Run the CPU."""
 
+		self.running = True
 
+		while self.running:
+			#instruction register
+			IR = self.ram_read(self.pc)
 
+			operand_a = self.ram_read(self.pc + 1)
 
+			operand_b = self.ram_read(self.pc + 2)
+
+			num_operands = IR >> 6
+
+			self.pc += 1 + num_operands
+
+			is_alu_op = ((IR >> 5) & 0b001) == 1
+
+			if is_alu_op:
+				self.alu(IR, operand_a, operand_b)
+
+			else:
+				self.branch_table[IR](operand_a, operand_b)
+
+	def hlt(self, operand_a, operand_b):
+		self.running = False
+
+	def ldi(self, operand_a, operand_b):
+		self.registers[operand_a] = operand_b
+
+	def prn(self, operand_a, operand_b):
+		print(self.registers[operand_a])
+
+	def push(self, operand_a, operand_b):
+		#decrement stack pointer(SP)
+		self.registers[7] -= 1
+
+		#get value from register
+		value = self.registers[operand_a]
+
+		#put on the stack at SP
+		SP = self.registers[7]
+		self.ram_write(SP, value)
+
+	def pop(self, operand_a, operand_b):
+		#get value from stack
+		SP = self.registers[7]
+		value = self.ram_read(SP)
+
+		#put value into register, indicated by operand_a
+		self.registers[operand_a] = value
+
+		#increment stack pointer
+		self.registers[7] += 1
